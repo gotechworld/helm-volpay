@@ -1,0 +1,32 @@
+parameters:
+  - name: chartPath
+    default: 'deploy/k8s/helm'
+  - name: artifactStagingDirectory
+    default: $(Build.ArtifactStagingDirectory)
+  - name: artifactName
+    default: helmArtifact
+  - name: copyContent
+    default: '*.tgz'
+    
+
+steps:
+  - task: HelmDeploy@0
+    displayName: Helm package
+    inputs:
+      command: package
+      chartPath: ${{ parameters.chartPath }}
+      destination: $(Build.ArtifactStagingDirectory)
+
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: '$(Build.ArtifactStagingDirectory)'
+      Contents: '${{ parameters.copyContent }}'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+      OverWrite: true
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+      ArtifactName: '${{ parameters.artifactName }}'
+      # publishLocation: 'Container'
+
+# TODO: sign the artifact

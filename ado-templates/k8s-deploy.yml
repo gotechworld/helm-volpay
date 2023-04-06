@@ -1,0 +1,54 @@
+parameters:
+- name: replaceDirectory
+  default: '$(Pipeline.Workspace)/manifests/'
+- name: replaceTarget  
+  default: '*.yml'
+- name: ACREndpoint
+  default: ''
+- name: secretName
+  default: 'acr-secret'
+- name: manifestFiles
+  default: ''
+- name: containersName
+  default: '$(DOCKER_REGISTRY)$(imageRepository):$(Build.BuildNumber)'
+- name: serviceConnection
+  default: ''
+- name: k8sNS
+  default: 'dev'
+
+steps:
+  # replacing variables in manifest files
+- task: replacetokens@5
+  inputs:
+    rootDirectory: ${{ parameters.replaceDirectory }}
+    targetFiles: ${{ parameters.replaceTarget }}
+    encoding: 'auto'
+    tokenPattern: 'default'
+    writeBOM: true
+    actionOnMissing: 'fail'
+    keepToken: false
+    actionOnNoFiles: 'fail'
+    enableTransforms: true
+    useLegacyPattern: false
+    enableTelemetry: false
+  displayName: Replace tokens in manifest file
+  # Create secret for ACR image pull
+- task: KubernetesManifest@0
+  inputs:
+    action: 'createSecret'
+    kubernetesServiceConnection: ${{ parameters.serviceConnection }}
+    namespace: ${{ parameters.k8sNS }}
+    secretType: 'dockerRegistry'
+    secretName: ${{ parameters.secretName }}
+    dockerRegistryEndpoint: ${{ parameters.ACREndpoint }}
+  # Apply all the manifest files
+- task: KubernetesManifest@0
+  displayName: Deploy to Kubernetes cluster
+  inputs:
+    action: 'deploy'
+    kubernetesServiceConnection: ${{ parameters.serviceConnection }}
+    namespace: ${{ parameters.k8sNS }}
+    manifests: |
+      ${{ parameters.manifestFiles }}
+    containers: ${{ parameters.containersName }}
+    imagePullSecrets: ${{ parameters.secretName }}

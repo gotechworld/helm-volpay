@@ -1,0 +1,35 @@
+parameters:
+  - name: resultsFiles
+    type: string
+  - name: resultsFormat
+    type: string
+  - name: artifactName
+    type: string
+    default: "jmeter-results"
+
+steps:
+- task: CmdLine@2
+  displayName: 'Install Jmeter'
+  inputs:
+    script: |
+      mkdir Results      
+      chmod +x apache-jmeter-5.5-standalone/bin/*
+      ls -al apache-jmeter-5.5-standalone
+      ls -al apache-jmeter-5.5-standalone/bin 
+      apache-jmeter-5.5-standalone/bin/jmeter -n -t Jmeter_Demo_test/JSON_Assertion_Consumer_DEMO.jmx -l results.jtl -e -o Results
+- script: |
+    JMETER_RESULTS=JMeter/Results/results.jtl
+    JUNIT_RESULTS="${{ parameters.resultsFiles }}"
+    python3 jtl_junit_converter.py $JMETER_RESULTS $JUNIT_RESULTS
+  displayName: 'RESULTS: Convert JMeter Results to JUnit Format'
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: '${{ parameters.resultsFormat }}'
+    testResultsFiles: '${{ parameters.resultsFiles }}'
+    failTaskOnFailedTests: true
+  displayName: 'RESULTS: Publish Load Testing Results'
+
+- publish: $(System.DefaultWorkingDirectory)/Results
+  artifact: '${{ parameters.artifactName }}'
+  condition: succeededOrFailed()
+  displayName: 'RESULTS: Publish Load Test Artifacts'

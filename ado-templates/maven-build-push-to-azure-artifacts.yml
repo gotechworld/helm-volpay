@@ -1,0 +1,70 @@
+parameters:
+- name: pomFile
+  type: string
+  default: 'pom.xml'
+- name: goals
+  type: string
+  default: 'clean package'
+- name: jdkVersion
+  type: string
+  default: '1.17'
+- name: mvnOptions
+  type: string
+  default: '-Xmx3072m'
+- name: copyContent
+  type: string
+  default: '**/target/*.jar'
+- name: artifactName
+  type: string
+  default: 'javaArftifact'
+- name: feedPackagePublish
+  type: string
+  default: 'dto.generation'
+  #package name pushed in ADO Artifacts Feed
+- name: feedPublish
+  type: string
+  default: 'Volpay-Innovation'
+
+steps:
+- task: Maven@4
+  inputs:
+    mavenPomFile: '${{ parameters.pomFile }}'
+    goals: '${{ parameters.goals }}'
+    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '${{ parameters.jdkVersion }}'
+    mavenVersionOption: 'Default'
+    mavenOptions: '${{ parameters.mvnOptions }}'
+    mavenAuthenticateFeed: false
+    effectivePomSkip: false
+    sonarQubeRunAnalysis: false
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(System.DefaultWorkingDirectory)'
+    Contents: '${{ parameters.copyContent }}'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+    OverWrite: true
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+    artifactName: '${{ parameters.artifactName }}'
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    searchFolder: '$(System.DefaultWorkingDirectory)'
+    testRunTitle: 'JUnit Test Results'
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'JaCoCo'
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/target/site/jacoco/jacoco.xml'
+    reportDirectory: '$(System.DefaultWorkingDirectory)/target/site/jacoco'
+- task: UniversalPackages@0
+  inputs:
+    command: 'publish'
+    publishDirectory: '$(Build.ArtifactStagingDirectory)'
+    feedsToUsePublish: 'internal'
+    vstsFeedPublish: 'Prj-Volante-inno/${{ parameters.feedPublish }}'
+    vstsFeedPackagePublish: '${{ parameters.feedPackagePublish }}'
+    versionOption: 'patch'

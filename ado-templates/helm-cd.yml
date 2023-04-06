@@ -1,0 +1,109 @@
+parameters:
+  - name: serviceConnection
+    default: 'Innovation_AKS'
+  - name: resourceGroup
+    default: 'useast-rg-VOLPAY'
+  - name: k8sCluster
+    default: 'VOLPAY-aks1'
+  - name: k8sNS
+    default: 'dev'
+  - name: appName
+    type: string
+    default: 'gheorghe-in'
+  - name: imageTag
+    type: string
+    default: '4.5.2'
+  - name: artifactName
+    default: helmArtifact
+  - name: artifactStagingDirectory
+    default: $(Build.ArtifactStagingDirectory)
+
+
+steps:
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: 'current'
+      downloadType: 'single'
+      artifactName: '${{parameters.artifactName}}'
+      downloadPath: '$(System.ArtifactsDirectory)'
+
+  - task: HelmDeploy@0
+    displayName: Helm list
+    inputs:
+      kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+      azureResourceGroup: ${{ parameters.resourceGroup }}
+      kubernetesCluster: ${{ parameters.k8sCluster }}
+      command: ls
+      arguments: --all
+
+  # - task: HelmDeploy@0
+  #   displayName: Helm install
+  #   continueOnError: true
+  #   inputs:
+  #     kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+  #     azureResourceGroup: ${{ parameters.resourceGroup }}
+  #     kubernetesCluster: ${{ parameters.k8sCluster }}
+  #     command: install
+  #     namespace: ${{ parameters.k8sNS }}
+  #     chartType: filepath
+  #     chartPath: $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/${{ parameters.appName }}-${{ parameters.imageTag }}.tgz
+  #     waitForExecution: true
+  - task: Kubernetes@1
+    continueOnError: true
+    inputs:
+      connectionType: 'Kubernetes Service Connection'
+      kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+      command: 'create'
+      arguments: 'namespace ${{ parameters.k8sNS }}'
+      secretType: 'dockerRegistry'
+      containerRegistryType: 'Azure Container Registry'
+
+  - task: HelmDeploy@0
+    name: HelmUpgrade
+    displayName: Helm upgrade
+    inputs:
+      kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+      azureResourceGroup: ${{ parameters.resourceGroup }}
+      kubernetesCluster: ${{ parameters.k8sCluster }}
+      releaseName: ${{ parameters.appName }}
+      command: upgrade
+      chartType: filepath
+      chartPath: $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/${{ parameters.appName }}-${{ parameters.imageTag }}.tgz
+      install: true
+      namespace: ${{ parameters.k8sNS }}
+      waitForExecution: true
+
+  # TODO: find a way to work with custom conditions
+  # - task: Bash@3
+  #   name: GetStateOfPrevious
+  #   inputs:
+  #     targetType: inline
+  #     script: |
+  #       prevTaskState=$[ dependencies.HelmUpgrade.result ]
+  #       echo prevTaskState
+  #       echo "##vso[task.setvariable variable=prevTaskState;isOutput=true]$prevTaskState"
+  # - task: HelmDeploy@0
+  #   displayName: Helm install
+  #   condition: eq(variables['GetStateOfPrevious.prevTaskState'], 'false') 
+  #   inputs:
+  #     kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+  #     azureResourceGroup: ${{ parameters.resourceGroup }}
+  #     kubernetesCluster: ${{ parameters.k8sCluster }}
+  #     command: install
+  #     install: true
+  #     namespace: ${{ parameters.k8sNS }}
+  #     waitForExecution: false
+  #     chartType: filepath
+  #     chartPath: $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/${{ parameters.appName }}-${{ parameters.imageTag }}.tgz
+
+
+
+
+  - task: HelmDeploy@0
+    displayName: Helm list
+    inputs:
+      kubernetesServiceEndpoint: ${{ parameters.serviceConnection }}
+      azureResourceGroup: ${{ parameters.resourceGroup }}
+      kubernetesCluster: ${{ parameters.k8sCluster }}
+      command: ls
+      arguments: --all

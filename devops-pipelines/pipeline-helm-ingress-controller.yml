@@ -1,0 +1,96 @@
+name: $(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+parameters:
+# Parameter to choose the deployment environment
+- name: DEV_ENV
+  displayName: Choose target environment
+  type: string
+  default: dev
+  values:
+  - dev
+  - qa
+  - devops
+
+
+#Parameter to deploy custom image
+- name: IMAGE
+  displayName: Image name to be deployed
+  type: string
+  default: ' '
+
+
+trigger:
+  branches:
+    include:
+      - main
+      - releases/*
+      - feature/*
+    exclude:
+      - releases/old*
+      - feature/*-working
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: volpay-deployment-templates
+      ref: master
+
+variables:
+  - name: imageRepo
+    value: dummy-image-repo
+  - name: serviceConnection
+    value: Innovation_AKS
+  - name: DOCKER_REGISTRY
+    value: volpayacr.azurecr.io
+  - name: dockerRegistryServiceConnection
+    value: Innovation_ACR
+
+pool:
+  vmImage: "ubuntu-latest"
+
+stages:
+  - stage: 'SecretDetection'
+    displayName: SecretDetection
+    jobs:
+      - job: 'SecretDetection'
+        displayName: SecretDetection
+        steps:
+          - template: ../ado-templates/secret-detection.yml
+            parameters:
+              scanLocation: '$(Build.SourcesDirectory)'
+
+  # - stage: 'CodeLinting'
+  #   displayName: CodeLinting
+  #   jobs:
+  #     - job: 'CodeLinting'
+  #       displayName: CodeLinting
+  #       steps:
+  #         - template: ../ado-templates/lint.yml
+  #           parameters:
+  #             artifactName: 'MegaLinterReport'
+
+  - stage: 'HelmCI'
+    displayName: Helm CI
+    jobs:
+      - job: 'HelmCI'
+        displayName: Helm CI
+        steps:
+          - template: ../ado-templates/helm-ci.yml
+            parameters:
+              chartPath: 'helm-charts/ingress-nginx'
+              artifactName: 'helmArtifact'
+  - stage: 'HelmCD'
+    displayName: Helm CD
+    jobs:
+      - job: 'HelmCD'
+        displayName: Helm CD
+        steps:
+          - template: ../ado-templates/helm-cd.yml
+            parameters:
+              appName: 'ingress-nginx'
+              artifactName: 'helmArtifact'
+              k8sNS: 'ingress-nginx'
+              # artifactStagingDirectory: ''
+
+

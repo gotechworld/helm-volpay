@@ -1,0 +1,65 @@
+
+parameters:
+- name: buildFolder
+  type: string
+  default: '$(System.DefaultWorkingDirectory)'
+- name: copyContent
+  type: string
+  default: '**'
+- name: artifactName
+  type: string
+  default: 'goArtifact'
+- name: goVersion
+  type: string
+  default: '1.20.1'
+
+- name: scanLocation
+  type: string
+  default: '$(Build.SourcesDirectory)'
+
+steps:
+- task: GoTool@0
+  displayName: Download Go version
+  inputs:
+    version: ${{ parameters.goVersion }}
+- task: Go@0
+  displayName: go get
+  inputs:
+    command: 'get'
+    arguments: '-d'
+    workingDirectory: ${{ parameters.buildFolder }}
+- task: Go@0
+  displayName: go build
+  inputs:
+    command: 'build'
+    arguments: ${{ parameters.buildFolder }}
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(System.DefaultWorkingDirectory)'
+    Contents: '${{ parameters.copyContent }}'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+    artifactName: '${{ parameters.artifactName }}'
+
+- task: Gitleaks@2
+  displayName: 'Scan secrets'
+  inputs:
+    scanlocation: ${{ parameters.scanLocation }}
+    configtype: 'default'
+    predefinedconfigfile: 'GitleaksUdmCombo.toml'
+    scanmode: 'all'
+    reportformat: 'sarif'
+    reportname: 'gitleaks'
+    uploadresults: true
+    verbose: true
+    version: 'latest'
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish sarif results'
+  inputs:
+    PathtoPublish: ${{ parameters.scanLocation }}
+    ArtifactName: 'CodeAnalysisLogs'
+    StoreAsTar: true
+  condition: succeededOrFailed()
+

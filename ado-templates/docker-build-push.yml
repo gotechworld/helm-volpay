@@ -1,0 +1,28 @@
+parameters:
+- name: artifactName
+  type: string
+  default: ''
+- name: imageRepo
+  type: string
+  default: 'pom.xml'
+- name: dockerSC
+  type: string
+  default: ''
+- name: tags
+  type: string
+  default: '$(Build.BuildNumber)'
+
+steps:
+  - ${{if parameters.artifactName}}:
+    - download: current
+      artifact: '${{ parameters.artifactName }}'
+  - task: Docker@2
+    displayName: Build and push an image to container registry
+    inputs:
+      command: buildAndPush
+      buildContext: "$(Pipeline.Workspace)/${{ parameters.artifactName }}"
+      repository: '${{ parameters.imageRepo }}'
+      dockerfile: Dockerfile
+      containerRegistry: '${{ parameters.dockerSC }}'
+      tags: |
+        $(Build.BuildNumber)
